@@ -3,6 +3,7 @@ Retail Analytics Data Generator
 Generates realistic sample data for PostgreSQL database
 """
 import random
+import os
 from datetime import date, timedelta
 import psycopg2
 from psycopg2.extras import execute_batch
@@ -10,21 +11,15 @@ from psycopg2.extras import execute_batch
 # Seed for reproducibility
 random.seed(42)
 
-# Configuration
-DB_CONFIG = {
-    "dbname": "retail_analytics",
-    "user": "postgres",
-    "password": "postgres",
-    "host": "localhost",
-    "port": "5432"
-}
 
-# Data constants
-FIRST_NAMES = ["James", "Mary", "John", "Patricia", "Robert", "Jennifer", "Michael", "Linda", 
-               "William", "Barbara", "David", "Elizabeth", "Richard", "Susan", "Joseph", "Jessica"]
-LAST_NAMES = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis",
-              "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson"]
-CHANNELS = ["Organic", "Paid Search", "Referral", "Email", "Social Media", "Direct"]
+# Configuration - Use environment variables in CI/CD, fallback to defaults locally
+DB_CONFIG = {
+    "dbname": os.getenv('PGDATABASE', 'retail_analytics'),
+    "user": os.getenv('PGUSER', 'postgres'),
+    "password": os.getenv('PGPASSWORD', 'postgres'),
+    "host": os.getenv('PGHOST', 'localhost'),
+    "port": os.getenv('PGPORT', '5432')
+}CHANNELS = ["Organic", "Paid Search", "Referral", "Email", "Social Media", "Direct"]
 CATEGORIES = ["Electronics", "Home & Garden", "Fitness", "Office Supplies", "Clothing", "Books"]
 PRODUCTS = {
     "Electronics": ["Laptop", "Smartphone", "Tablet", "Headphones", "Smartwatch"],
