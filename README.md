@@ -270,7 +270,7 @@ psql -U postgres -d retail_analytics -f admin/performance_analysis.sql
 **Adonis Jimenez**
 - LinkedIn: [linkedin.com/in/adonisjimenez](https://linkedin.com/in/adonisjimenez)
 - GitHub: [@mr-adonis-jimenez](https://github.com/mr-adonis-jimenez)
-- Portfolio: [Your Portfolio URL]
+- Portfolio: [adonisjimenez.com](https://adonisjimenez.com)
 
 ## 📄 License
 
