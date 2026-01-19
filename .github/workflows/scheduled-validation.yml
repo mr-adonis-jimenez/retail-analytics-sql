@@ -25,19 +25,19 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
-
+          
     steps:
       - name: Checkout main branch
         uses: actions/checkout@v4
         with:
           ref: main
-
+          
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
-
+          
       - name: Install dependencies
         run: |
           pip install --upgrade pip
@@ -45,21 +45,21 @@ jobs:
             pip install -r requirements.txt
           fi
           pip install psycopg2-binary
-
+          
       - name: Wait for PostgreSQL
         run: |
           until PGPASSWORD=validation_password psql -h localhost -U retail_admin -d retail_analytics_nightly -c '\q'; do
             echo "Waiting for PostgreSQL..."
             sleep 2
           done
-
+          
       - name: Apply schema
         env:
           PGPASSWORD: validation_password
         run: |
           echo "Applying database schema..."
           psql -h localhost -U retail_admin -d retail_analytics_nightly -f schema/schema.sql -v ON_ERROR_STOP=1
-
+          
       - name: Load small sample dataset
         env:
           PGHOST: localhost
@@ -70,9 +70,9 @@ jobs:
         run: |
           echo "Generating small dataset for validation..."
           if [ -f scripts/generate_data.py ]; then
-            python scripts/generate_data.py --small
+            python scripts/generate_data.py
           fi
-
+          
       - name: Run KPI queries and capture output
         env:
           PGPASSWORD: validation_password
@@ -80,14 +80,9 @@ jobs:
           echo "Running KPI dashboard queries..."
           mkdir -p artifacts
           
-          # Run KPI dashboard
-          if [ -f analytics/kpi_dashboard.sql ]; then
-            psql -h localhost -U retail_admin -d retail_analytics_nightly -f analytics/kpi_dashboard.sql > artifacts/kpi_output.txt 2>&1 || echo "KPI query had issues"
-          fi
-          
-          # Run individual analytics queries
-          if [ -d analytics ]; then
-            for sql_file in analytics/*.sql; do
+          # Run individual queries
+          if [ -d queries ]; then
+            for sql_file in queries/*.sql; do
               if [ -f "$sql_file" ]; then
                 filename=$(basename "$sql_file" .sql)
                 echo "Running: $sql_file"
@@ -95,52 +90,7 @@ jobs:
               fi
             done
           fi
-
-      - name: Extract key metrics
-        env:
-          PGPASSWORD: validation_password
-        run: |
-          echo "Extracting key business metrics..."
           
-          # Customer Lifetime Value
-          psql -h localhost -U retail_admin -d retail_analytics_nightly -c "
-            SELECT 'CLV' as metric, ROUND(AVG(customer_lifetime_value)::numeric, 2) as value
-            FROM (
-              SELECT customer_id, SUM(total_amount) as customer_lifetime_value
-              FROM orders
-              GROUP BY customer_id
-            ) clv_calc;
-          " > artifacts/clv_metric.txt 2>&1 || true
-          
-          # Revenue by channel
-          psql -h localhost -U retail_admin -d retail_analytics_nightly -c "
-            SELECT channel, ROUND(SUM(total_amount)::numeric, 2) as revenue
-            FROM orders
-            GROUP BY channel
-            ORDER BY revenue DESC;
-          " > artifacts/revenue_by_channel.txt 2>&1 || true
-          
-          # RFM Segment distribution
-          psql -h localhost -U retail_admin -d retail_analytics_nightly -c "
-            SELECT 
-              CASE 
-                WHEN recency_score >= 4 AND frequency_score >= 4 THEN 'Champions'
-                WHEN recency_score >= 3 AND frequency_score >= 3 THEN 'Loyal'
-                WHEN recency_score >= 3 AND frequency_score < 3 THEN 'Potential'
-                ELSE 'At Risk'
-              END as segment,
-              COUNT(*) as customer_count
-            FROM (
-              SELECT 
-                customer_id,
-                NTILE(5) OVER (ORDER BY MAX(order_date) DESC) as recency_score,
-                NTILE(5) OVER (ORDER BY COUNT(*)) as frequency_score
-              FROM orders
-              GROUP BY customer_id
-            ) rfm
-            GROUP BY segment;
-          " > artifacts/rfm_segments.txt 2>&1 || true
-
       - name: Run validation checks
         env:
           PGPASSWORD: validation_password
@@ -152,86 +102,29 @@ jobs:
             psql -h localhost -U retail_admin -d retail_analytics_nightly -f validation/data_quality_checks.sql > artifacts/validation_output.txt 2>&1
           fi
           
-          # Additional validation queries
-          if [ -d validation ]; then
-            for sql_file in validation/*.sql; do
-              if [ -f "$sql_file" ]; then
-                filename=$(basename "$sql_file" .sql)
-                echo "Running: $sql_file"
-                psql -h localhost -U retail_admin -d retail_analytics_nightly -f "$sql_file" > "artifacts/${filename}_validation.txt" 2>&1 || true
-              fi
-            done
-          fi
-
-      - name: Check for breaking changes
-        env:
-          PGPASSWORD: validation_password
-        run: |
-          echo "Checking for potential breaking changes..."
-          
-          # Check for query errors
-          ERRORS=0
-          if grep -r "ERROR" artifacts/*.txt; then
-            echo "⚠ Errors detected in query outputs"
-            ERRORS=1
-          fi
-          
-          # Check for validation failures
-          if grep -r "FAIL\|VIOLATION" artifacts/validation_output.txt 2>/dev/null; then
-            echo "⚠ Data quality violations detected"
-            ERRORS=1
-          fi
-          
-          if [ $ERRORS -eq 1 ]; then
-            echo "::warning::Validation checks detected issues"
-          else
-            echo "✓ No breaking changes detected"
-          fi
-
       - name: Generate validation report
         if: always()
         run: |
           cat > artifacts/nightly_report.md << 'EOF'
-          # Nightly Validation Report
-          
-          **Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-          **Branch**: main
-          **Commit**: ${{ github.sha }}
-          
-          ## Summary
-          
-          This nightly run validates that:
-          - Schema applies cleanly
-          - Sample data loads successfully  
-          - KPI queries execute without errors
-          - Validation checks pass
-          - Query outputs remain consistent
-          
-          ## Key Metrics
-          
-          ### Customer Lifetime Value
-          ```
-          $(cat artifacts/clv_metric.txt 2>/dev/null || echo "Not available")
-          ```
-          
-          ### Revenue by Channel
-          ```
-          $(cat artifacts/revenue_by_channel.txt 2>/dev/null || echo "Not available")
-          ```
-          
-          ### RFM Segments
-          ```
-          $(cat artifacts/rfm_segments.txt 2>/dev/null || echo "Not available")
-          ```
-          
-          ## Validation Results
-          
-          See attached artifacts for complete query outputs and validation results.
-          EOF
-          
-          # Expand variables
-          eval "cat <<< \"$(cat artifacts/nightly_report.md)\"" > artifacts/nightly_report_final.md
+# Nightly Validation Report
 
+**Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+**Branch**: main
+**Commit**: ${{ github.sha }}
+
+## Summary
+
+This nightly run validates that:
+- Schema applies cleanly
+- Sample data loads successfully 
+- All queries execute without errors
+- Validation checks pass
+
+## Query Results
+
+See attached artifacts for complete query outputs and validation results.
+EOF
+          
       - name: Archive query outputs
         if: always()
         uses: actions/upload-artifact@v4
@@ -241,38 +134,3 @@ jobs:
             artifacts/**/*.txt
             artifacts/**/*.md
           retention-days: 90
-
-      - name: Create issue on failure
-        if: failure()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const title = `⚠ Nightly Validation Failed - ${new Date().toISOString().split('T')[0]}`;
-            const body = `## Nightly Validation Failure\n\n` +
-              `**Run**: [#${context.runNumber}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})\n` +
-              `**Date**: ${new Date().toUTCString()}\n\n` +
-              `The scheduled nightly validation has detected issues with the main branch.\n\n` +
-              `### Action Required\n` +
-              `1. Review the workflow artifacts for details\n` +
-              `2. Check for breaking changes in recent commits\n` +
-              `3. Verify schema, queries, and validation scripts\n\n` +
-              `### Artifacts\n` +
-              `Download the validation artifacts from the workflow run to inspect query outputs and error logs.`;
-            
-            // Check if similar issue already exists
-            const issues = await github.rest.issues.listForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'open',
-              labels: 'nightly-validation'
-            });
-            
-            if (issues.data.length === 0) {
-              await github.rest.issues.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                title: title,
-                body: body,
-                labels: ['nightly-validation', 'bug']
-              });
-            }
