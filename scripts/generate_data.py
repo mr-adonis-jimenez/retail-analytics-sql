@@ -19,7 +19,9 @@ DB_CONFIG = {
     "password": os.getenv('PGPASSWORD', 'postgres'),
     "host": os.getenv('PGHOST', 'localhost'),
     "port": os.getenv('PGPORT', '5432')
-}CHANNELS = ["Organic", "Paid Search", "Referral", "Email", "Social Media", "Direct"]
+}
+
+CHANNELS = ["Organic", "Paid Search", "Referral", "Email", "Social Media", "Direct"]
 CATEGORIES = ["Electronics", "Home & Garden", "Fitness", "Office Supplies", "Clothing", "Books"]
 PRODUCTS = {
     "Electronics": ["Laptop", "Smartphone", "Tablet", "Headphones", "Smartwatch"],
