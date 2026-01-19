@@ -5,8 +5,10 @@
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ## Overview
-A comprehensive PostgreSQL analytics database demonstrating advanced querying, data modeling, and business intelligence techniques using a retail dataset. This project showcases SQL proficiency, data analysis skills, and database optimization strategies.
+This project is a end-to-end retail analytics solution built on PostgreSQL, focused on actionable business intelligence and production-grade SQL.
 
+- 📘 High-level system and database design: see [Architecture Documentation](./ARCHITECTURE.md).
+- 📊 Stakeholder-facing insights and examples: see [Business Insights](./insights/business_insights.md).
 ## 🎯 Key Features
 
 - **Normalized Schema Design**: Fully normalized 3NF database structure
