@@ -2,12 +2,12 @@
 SELECT 
     p.category,
     p.product_name,
-    COUNT(sa.sale_id) AS sales_count,
-    SUM(sa.quantity) AS units_sold,
-    ROUND(SUM(sa.quantity * p.unit_price * (1 - sa.discount_percent/100)), 2) AS revenue,
-    RANK() OVER (PARTITION BY p.category ORDER BY SUM(sa.quantity * p.unit_price * (1 - sa.discount_percent/100)) DESC) AS revenue_rank,
-    ROUND(AVG(p.unit_price), 2) AS avg_price
+    COUNT(o.order_id) AS sales_count,
+    SUM(o.quantity) AS units_sold,
+    ROUND(SUM(o.order_total), 2) AS revenue,
+    RANK() OVER (PARTITION BY p.category ORDER BY SUM(o.order_total) DESC) AS revenue_rank,
+    ROUND(AVG(p.price), 2) AS avg_price
 FROM products p
-INNER JOIN sales sa ON p.product_id = sa.product_id
-GROUP BY p.category, p.product_name
+INNER JOIN orders o ON p.product_id = o.product_id
+GROUP BY p.category, p.product_name, p.price
 ORDER BY p.category, revenue_rank;
