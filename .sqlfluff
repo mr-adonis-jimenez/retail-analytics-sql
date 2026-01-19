@@ -1,0 +1,44 @@
+[sqlfluff]
+dialect = postgres
+templater = raw
+exclude_rules = L034,L036
+max_line_length = 120
+indent_unit = space
+
+[sqlfluff:indentation]
+indented_joins = False
+indented_ctes = False
+indented_using_on = True
+template_blocks_indent = True
+
+[sqlfluff:rules]
+tab_space_size = 4
+indent_unit = space
+
+[sqlfluff:rules:L003]
+indent_unit = space
+
+[sqlfluff:rules:L010]
+capitalisation_policy = upper
+
+[sqlfluff:rules:L014]
+capitalisation_policy = upper
+
+[sqlfluff:rules:L030]
+capitalisation_policy = upper
+
+[sqlfluff:rules:L040]
+capitalisation_policy = upper
+
+[sqlfluff:rules:L042]
+forbid_subquery_in = both
+
+[sqlfluff:rules:L052]
+multiline_newline = True
+require_final_semicolon = True
+
+[sqlfluff:rules:L063]
+extended_capitalisation_policy = upper
+
+[sqlfluff:rules:L064]
+preferred_quoted_literal_style = single_quotes
