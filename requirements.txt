@@ -1,0 +1,4 @@
+# Python Dependencies for Retail Analytics SQL
+# Install with: pip install -r requirements.txt
+
+psycopg2-binary>=2.9.0
