@@ -1,23 +1,14 @@
--- Calculate inventory turnover and identify slow-moving products
+-- Analyze product sales performance
 SELECT 
-    s.store_name,
     p.product_name,
     p.category,
-    i.stock_quantity AS current_stock,
-    COALESCE(SUM(sa.quantity), 0) AS units_sold,
-    i.last_restock_date,
-    DATEDIFF(CURDATE(), i.last_restock_date) AS days_since_restock,
-    CASE 
-        WHEN COALESCE(SUM(sa.quantity), 0) = 0 THEN 'No Sales'
-        WHEN i.stock_quantity / NULLIF(SUM(sa.quantity), 0) > 10 THEN 'Overstocked'
-        WHEN i.stock_quantity / NULLIF(SUM(sa.quantity), 0) < 2 THEN 'Low Stock'
-        ELSE 'Optimal'
-    END AS stock_status
-FROM inventory i
-INNER JOIN stores s ON i.store_id = s.store_id
-INNER JOIN products p ON i.product_id = p.product_id
-LEFT JOIN sales sa ON i.product_id = sa.product_id 
-    AND i.store_id = sa.store_id 
-    AND sa.sale_date >= i.last_restock_date
-GROUP BY s.store_name, p.product_name, p.category, i.stock_quantity, i.last_restock_date
-ORDER BY s.store_name, stock_status;
+    p.price,
+    COUNT(o.order_id) AS times_ordered,
+    SUM(o.quantity) AS total_units_sold,
+    ROUND(SUM(o.order_total), 2) AS total_revenue,
+    MAX(o.order_date) AS last_order_date,
+    EXTRACT(DAY FROM CURRENT_DATE - MAX(o.order_date)) AS days_since_last_order
+FROM products p
+LEFT JOIN orders o ON p.product_id = o.product_id
+GROUP BY p.product_id, p.product_name, p.category, p.price
+ORDER BY total_units_sold DESC;
