@@ -1,0 +1,102 @@
+# CODEOWNERS - Code Review and Ownership
+# 
+# This file defines individuals or teams responsible for code in this repository.
+# When a pull request modifies code that has an owner, that owner will be automatically
+# requested for review.
+#
+# More info: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Global Owners - These users are the default owners for everything in the repo
+# unless a later match takes precedence.
+*       @mr-adonis-jimenez
+
+# ============================================================================
+# SQL Schema and Database Structure
+# ============================================================================
+
+# Schema changes require careful review for backwards compatibility
+/schema/                        @mr-adonis-jimenez
+
+# Core business logic queries
+/queries/                       @mr-adonis-jimenez
+
+# ============================================================================
+# Analytics and Business Intelligence
+# ============================================================================
+
+# Analytics queries - require business logic verification
+/analytics/                     @mr-adonis-jimenez
+
+# Insights and reporting
+/insights/                      @mr-adonis-jimenez
+
+# ============================================================================
+# Data Quality and Validation
+# ============================================================================
+
+# Data validation queries - critical for data integrity
+/validation/                    @mr-adonis-jimenez
+
+# ============================================================================
+# Scripts and Automation
+# ============================================================================
+
+# Python scripts for data generation and automation
+/scripts/*.py                   @mr-adonis-jimenez
+
+# ============================================================================
+# Database Administration
+# ============================================================================
+
+# Performance monitoring and optimization
+/admin/                         @mr-adonis-jimenez
+
+# ============================================================================
+# Documentation
+# ============================================================================
+
+# Documentation changes
+*.md                            @mr-adonis-jimenez
+README.md                       @mr-adonis-jimenez
+CONTRIBUTING.md                 @mr-adonis-jimenez
+
+# ============================================================================
+# Configuration and Project Files
+# ============================================================================
+
+# Requirements and dependencies
+requirements.txt                @mr-adonis-jimenez
+
+# Git configuration
+.gitignore                      @mr-adonis-jimenez
+
+# ============================================================================
+# Security and Compliance
+# ============================================================================
+
+# Security policy - requires security team review
+SECURITY.md                     @mr-adonis-jimenez
+
+# License changes
+LICENSE                         @mr-adonis-jimenez
+
+# Code ownership file
+.github/CODEOWNERS              @mr-adonis-jimenez
+
+# ============================================================================
+# Notes for Contributors
+# ============================================================================
+#
+# - Code owners are automatically requested for review when a PR touches their code
+# - You can request additional reviewers beyond code owners
+# - Code owners can be individuals (@username) or teams (@org/team-name)
+# - The last matching pattern takes precedence
+# - Use '#' for comments
+# - Paths are relative to the repository root
+#
+# Examples:
+# /path/to/file.ext              @username
+# /path/to/directory/            @username
+# *.js                           @javascript-team
+# /docs/**/*.md                  @documentation-team
+#
