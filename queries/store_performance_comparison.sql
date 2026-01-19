@@ -1,16 +1,13 @@
--- Compare store performance across regions
+-- Compare performance across customer acquisition channels
 SELECT 
-    s.region,
-    s.store_name,
-    s.city,
-    COUNT(DISTINCT sa.sale_id) AS total_transactions,
-    COUNT(DISTINCT sa.customer_id) AS unique_customers,
-    SUM(sa.quantity) AS total_units_sold,
-    ROUND(SUM(sa.quantity * p.unit_price * (1 - sa.discount_percent/100)), 2) AS total_revenue,
-    ROUND(SUM((p.unit_price - p.cost) * sa.quantity * (1 - sa.discount_percent/100)), 2) AS total_profit,
-    ROUND(AVG(sa.quantity * p.unit_price * (1 - sa.discount_percent/100)), 2) AS avg_transaction_value
-FROM stores s
-LEFT JOIN sales sa ON s.store_id = sa.store_id
-LEFT JOIN products p ON sa.product_id = p.product_id
-GROUP BY s.region, s.store_name, s.city
-ORDER BY s.region, total_revenue DESC;
+    c.acquisition_channel,
+    COUNT(DISTINCT o.order_id) AS total_transactions,
+    COUNT(DISTINCT c.customer_id) AS unique_customers,
+    SUM(o.quantity) AS total_units_sold,
+    ROUND(SUM(o.order_total), 2) AS total_revenue,
+    ROUND(AVG(o.order_total), 2) AS avg_transaction_value,
+    ROUND(SUM(o.order_total) / COUNT(DISTINCT c.customer_id), 2) AS revenue_per_customer
+FROM customers c
+INNER JOIN orders o ON c.customer_id = o.customer_id
+GROUP BY c.acquisition_channel
+ORDER BY total_revenue DESC;
