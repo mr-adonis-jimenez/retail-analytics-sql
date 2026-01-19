@@ -1,18 +1,17 @@
--- Calculate customer lifetime value with segmentation
+-- Calculate customer lifetime value
 SELECT 
     c.customer_id,
     CONCAT(c.first_name, ' ', c.last_name) AS customer_name,
-    c.customer_segment,
-    COUNT(DISTINCT sa.sale_id) AS total_orders,
-    SUM(sa.quantity) AS total_items_purchased,
-    ROUND(SUM(sa.quantity * p.unit_price * (1 - sa.discount_percent/100)), 2) AS lifetime_value,
-    ROUND(AVG(sa.quantity * p.unit_price * (1 - sa.discount_percent/100)), 2) AS avg_order_value,
-    MIN(sa.sale_date) AS first_purchase,
-    MAX(sa.sale_date) AS last_purchase,
-    DATEDIFF(MAX(sa.sale_date), MIN(sa.sale_date)) AS customer_tenure_days
+    c.acquisition_channel,
+    COUNT(DISTINCT o.order_id) AS total_orders,
+    SUM(o.quantity) AS total_items_purchased,
+    ROUND(SUM(o.order_total), 2) AS lifetime_value,
+    ROUND(AVG(o.order_total), 2) AS avg_order_value,
+    MIN(o.order_date) AS first_purchase,
+    MAX(o.order_date) AS last_purchase,
+    EXTRACT(DAY FROM MAX(o.order_date) - MIN(o.order_date)) AS customer_tenure_days
 FROM customers c
-INNER JOIN sales sa ON c.customer_id = sa.customer_id
-INNER JOIN products p ON sa.product_id = p.product_id
-GROUP BY c.customer_id, customer_name, c.customer_segment
-HAVING lifetime_value > 0
-ORDER BY lifetime_value DESC;
+INNER JOIN orders o ON c.customer_id = o.customer_id
+GROUP BY c.customer_id, customer_name, c.acquisition_channel
+ORDER BY lifetime_value DESC
+LIMIT 50;
