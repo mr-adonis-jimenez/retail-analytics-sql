@@ -9,7 +9,7 @@ SELECT
     ROUND(AVG(o.order_total), 2) AS avg_order_value,
     MIN(o.order_date) AS first_purchase,
     MAX(o.order_date) AS last_purchase,
-    EXTRACT(DAY FROM MAX(o.order_date) - MIN(o.order_date)) AS customer_tenure_days
+    MAX(o.order_date) - MIN(o.order_date) AS customer_tenure_days
 FROM customers c
 INNER JOIN orders o ON c.customer_id = o.customer_id
 GROUP BY c.customer_id, customer_name, c.acquisition_channel
