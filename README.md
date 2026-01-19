@@ -3,8 +3,14 @@
 ## Overview
 A comprehensive SQL database demonstrating advanced querying, joins, aggregations, and analytical techniques using a multi-store retail dataset.
 
-## Schema
+## Schema Design
+The database is fully normalized to support customer, product, and order-level analytics.
+
 ![ER Diagram](schema/er_diagram.png)
+
+## Business Insights
+Key findings and recommendations derived from the analysis are documented here:
+- [Business Insights](insights/business_insights.md)
 
 ## Data Generation
 Run `generate_data.py` to create reproducible sample data.
