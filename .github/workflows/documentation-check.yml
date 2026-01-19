@@ -1,0 +1,237 @@
+name: Documentation Validation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '**.md'
+      - 'schema/**'
+      - 'queries/**'
+      - 'analytics/**'
+      - 'validation/**'
+      - 'admin/**'
+      - '.github/workflows/documentation-check.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '**.md'
+  schedule:
+    # Weekly documentation check every Sunday at 10 AM UTC
+    - cron: '0 10 * * 0'
+  workflow_dispatch:
+
+jobs:
+  link-check:
+    name: Check Documentation Links
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install markdown-link-check
+        run: npm install -g markdown-link-check
+
+      - name: Check README.md links
+        continue-on-error: true
+        run: |
+          echo "Checking links in README.md..."
+          markdown-link-check README.md --config .github/markdown-link-check-config.json || echo "Issues found in README.md"
+
+      - name: Check ARCHITECTURE.md links
+        continue-on-error: true
+        run: |
+          if [ -f "ARCHITECTURE.md" ]; then
+            echo "Checking links in ARCHITECTURE.md..."
+            markdown-link-check ARCHITECTURE.md --config .github/markdown-link-check-config.json || echo "Issues found in ARCHITECTURE.md"
+          fi
+
+      - name: Check business_insights.md links
+        continue-on-error: true
+        run: |
+          if [ -f "insights/business_insights.md" ]; then
+            echo "Checking links in insights/business_insights.md..."
+            markdown-link-check insights/business_insights.md --config .github/markdown-link-check-config.json || echo "Issues found in business_insights.md"
+          fi
+
+      - name: Check all markdown files
+        run: |
+          echo "Checking all markdown files for broken links..."
+          find . -name "*.md" -not -path "./node_modules/*" -not -path "./.git/*" | while read file; do
+            echo "Checking: $file"
+            markdown-link-check "$file" --config .github/markdown-link-check-config.json || true
+          done
+
+      - name: Create link check config if missing
+        run: |
+          mkdir -p .github
+          if [ ! -f ".github/markdown-link-check-config.json" ]; then
+            cat > .github/markdown-link-check-config.json << 'EOF'
+          {
+            "ignorePatterns": [
+              {
+                "pattern": "^http://localhost"
+              },
+              {
+                "pattern": "^https://localhost"
+              }
+            ],
+            "timeout": "10s",
+            "retryOn429": true,
+            "retryCount": 3,
+            "fallbackRetryDelay": "30s",
+            "aliveStatusCodes": [200, 206, 301, 302, 307, 308]
+          }
+          EOF
+          fi
+
+  structure-validation:
+    name: Validate Project Structure
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify documented directories exist
+        run: |
+          echo "Verifying project structure matches documentation..."
+          EXIT_CODE=0
+          
+          # Expected directories
+          EXPECTED_DIRS="schema queries analytics validation admin scripts insights"
+          
+          for dir in $EXPECTED_DIRS; do
+            if [ -d "$dir" ]; then
+              echo "✓ $dir/ exists"
+            else
+              echo "❌ $dir/ is missing but may be documented"
+              EXIT_CODE=1
+            fi
+          done
+          
+          exit $EXIT_CODE
+
+      - name: Check for undocumented directories
+        run: |
+          echo "Checking for directories that might need documentation..."
+          
+          # Find directories not in standard ignore list
+          find . -maxdepth 1 -type d -not -path "./.*" -not -path "." | while read dir; do
+            dir_name=$(basename "$dir")
+            
+            # Check if directory is mentioned in README
+            if grep -q "$dir_name" README.md; then
+              echo "✓ $dir_name is documented in README.md"
+            else
+              echo "⚠ $dir_name might need documentation in README.md"
+            fi
+          done
+
+      - name: Verify key files are documented
+        run: |
+          echo "Checking that key files are referenced in documentation..."
+          
+          # Key files that should be mentioned
+          KEY_FILES="schema.sql kpi_dashboard.sql data_quality_checks.sql generate_data.py"
+          
+          for file in $KEY_FILES; do
+            if find . -name "$file" -type f | grep -q .; then
+              if grep -r "$file" *.md; then
+                echo "✓ $file is documented"
+              else
+                echo "⚠ $file exists but may not be documented"
+              fi
+            fi
+          done
+
+      - name: Check documentation completeness
+        run: |
+          echo "Checking documentation files for completeness..."
+          
+          # Check README sections
+          if grep -q "Installation\|Setup\|Getting Started" README.md; then
+            echo "✓ README.md has setup instructions"
+          else
+            echo "⚠ README.md might need setup instructions"
+          fi
+          
+          if grep -q "Usage\|Examples\|Queries" README.md; then
+            echo "✓ README.md has usage examples"
+          else
+            echo "⚠ README.md might need usage examples"
+          fi
+          
+          # Check ARCHITECTURE.md
+          if [ -f "ARCHITECTURE.md" ]; then
+            if grep -q "schema\|database\|structure" ARCHITECTURE.md; then
+              echo "✓ ARCHITECTURE.md documents database structure"
+            fi
+          fi
+
+      - name: Generate documentation report
+        if: always()
+        run: |
+          cat > doc-validation-report.md << 'EOF'
+          # Documentation Validation Report
+          
+          **Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Branch**: ${{ github.ref_name }}
+          
+          ## Structure Validation
+          
+          - README.md: $([ -f README.md ] && echo "✓ Present" || echo "❌ Missing")
+          - ARCHITECTURE.md: $([ -f ARCHITECTURE.md ] && echo "✓ Present" || echo "❌ Missing")
+          - SECURITY.md: $([ -f SECURITY.md ] && echo "✓ Present" || echo "❌ Missing")
+          - LICENSE: $([ -f LICENSE ] && echo "✓ Present" || echo "❌ Missing")
+          - insights/business_insights.md: $([ -f insights/business_insights.md ] && echo "✓ Present" || echo "⚠ Optional")
+          
+          ## Directory Structure
+          
+          - schema/: $([ -d schema ] && echo "✓ Exists" || echo "❌ Missing")
+          - queries/: $([ -d queries ] && echo "✓ Exists" || echo "❌ Missing")
+          - analytics/: $([ -d analytics ] && echo "✓ Exists" || echo "❌ Missing")
+          - validation/: $([ -d validation ] && echo "✓ Exists" || echo "❌ Missing")
+          - admin/: $([ -d admin ] && echo "✓ Exists" || echo "❌ Missing")
+          
+          ## Recommendations
+          
+          - Keep documentation up to date with code changes
+          - Ensure all directories have corresponding documentation
+          - Fix any broken links found in markdown files
+          - Document new features and queries as they are added
+          EOF
+          
+          # Expand variables
+          eval "cat <<< \"$(cat doc-validation-report.md)\"" > doc-validation-final.md
+
+      - name: Upload documentation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation-validation-report
+          path: doc-validation-final.md
+          retention-days: 30
+
+      - name: Comment on PR with documentation issues
+        if: github.event_name == 'pull_request' && failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let body = '📝 **Documentation Validation**\n\n';
+            
+            if (fs.existsSync('doc-validation-final.md')) {
+              body += fs.readFileSync('doc-validation-final.md', 'utf8');
+            } else {
+              body += 'Some documentation issues were detected. Please review the workflow logs.';
+            }
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });

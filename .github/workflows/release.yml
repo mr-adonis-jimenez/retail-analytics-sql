@@ -1,0 +1,181 @@
+name: Release Automation
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  create-release:
+    name: Create Release Package
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/}
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version_clean=${VERSION#v}" >> $GITHUB_OUTPUT
+
+      - name: Create release directory
+        run: |
+          mkdir -p release/retail-analytics-db-${{ steps.get_version.outputs.version_clean }}
+          cd release/retail-analytics-db-${{ steps.get_version.outputs.version_clean }}
+
+      - name: Package core files
+        run: |
+          RELEASE_DIR="release/retail-analytics-db-${{ steps.get_version.outputs.version_clean }}"
+          
+          # Copy schema
+          cp -r schema/ $RELEASE_DIR/
+          
+          # Copy queries
+          cp -r queries/ $RELEASE_DIR/
+          
+          # Copy validation scripts
+          cp -r validation/ $RELEASE_DIR/
+          
+          # Copy analytics
+          cp -r analytics/ $RELEASE_DIR/
+          
+          # Copy documentation
+          cp README.md ARCHITECTURE.md LICENSE SECURITY.md $RELEASE_DIR/
+          
+          # Copy business insights
+          if [ -f "insights/business_insights.md" ]; then
+            mkdir -p $RELEASE_DIR/insights
+            cp insights/business_insights.md $RELEASE_DIR/insights/
+          fi
+          
+          # Copy requirements
+          cp requirements.txt $RELEASE_DIR/
+
+      - name: Generate release notes
+        run: |
+          cat > release/RELEASE_NOTES.md << 'EOF'
+          # Retail Analytics Database - ${{ steps.get_version.outputs.version }}
+          
+          Released: $(date +"%Y-%m-%d")
+          
+          ## Contents
+          
+          This release package includes:
+          
+          - **schema/**: PostgreSQL database schema definitions
+          - **queries/**: Business analytics SQL queries
+          - **analytics/**: KPI dashboard and advanced analytics
+          - **validation/**: Data quality validation scripts
+          - **insights/**: Business insights documentation
+          - **README.md**: Project overview and setup instructions
+          - **ARCHITECTURE.md**: Technical architecture documentation
+          - **requirements.txt**: Python dependencies for data generation
+          
+          ## Installation
+          
+          1. Extract this package
+          2. Install PostgreSQL 13 or higher
+          3. Run: `psql -U your_user -d your_database -f schema/schema.sql`
+          4. Generate sample data: `python scripts/generate_data.py` (if included)
+          5. Execute queries from queries/ and analytics/ directories
+          
+          ## What's Changed
+          
+          See commit history for detailed changes in this release.
+          
+          ## Support
+          
+          For issues and questions, please visit:
+          https://github.com/${{ github.repository }}/issues
+          EOF
+          
+          # Expand variables
+          eval "cat <<< \"$(cat release/RELEASE_NOTES.md)\"" > release/RELEASE_NOTES_final.md
+          mv release/RELEASE_NOTES_final.md release/retail-analytics-db-${{ steps.get_version.outputs.version_clean }}/RELEASE_NOTES.md
+
+      - name: Create version file
+        run: |
+          cat > release/retail-analytics-db-${{ steps.get_version.outputs.version_clean }}/VERSION << EOF
+          Version: ${{ steps.get_version.outputs.version }}
+          Release Date: $(date +"%Y-%m-%d %H:%M:%S UTC")
+          Git Commit: ${{ github.sha }}
+          Repository: ${{ github.repository }}
+          EOF
+
+      - name: Create checksums
+        run: |
+          cd release/retail-analytics-db-${{ steps.get_version.outputs.version_clean }}
+          find . -type f -exec sha256sum {} \; > CHECKSUMS.txt
+          cd ..
+
+      - name: Create tarball
+        run: |
+          cd release
+          tar -czf retail-analytics-db-${{ steps.get_version.outputs.version_clean }}.tar.gz retail-analytics-db-${{ steps.get_version.outputs.version_clean }}/
+          zip -r retail-analytics-db-${{ steps.get_version.outputs.version_clean }}.zip retail-analytics-db-${{ steps.get_version.outputs.version_clean }}/
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get commits since last tag
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          
+          if [ -n "$PREVIOUS_TAG" ]; then
+            echo "Generating changelog from $PREVIOUS_TAG to ${{ steps.get_version.outputs.version }}"
+            git log $PREVIOUS_TAG..HEAD --pretty=format:"- %s (%an)" > CHANGELOG.txt
+          else
+            echo "First release - no previous tag found"
+            git log --pretty=format:"- %s (%an)" > CHANGELOG.txt
+          fi
+          
+          # Limit changelog size
+          head -n 50 CHANGELOG.txt > CHANGELOG_SHORT.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.get_version.outputs.version }}
+          name: Retail Analytics DB ${{ steps.get_version.outputs.version }}
+          body_path: CHANGELOG_SHORT.txt
+          files: |
+            release/retail-analytics-db-${{ steps.get_version.outputs.version_clean }}.tar.gz
+            release/retail-analytics-db-${{ steps.get_version.outputs.version_clean }}.zip
+            release/retail-analytics-db-${{ steps.get_version.outputs.version_clean }}/CHECKSUMS.txt
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create release summary
+        run: |
+          echo "## 🎉 Release ${{ steps.get_version.outputs.version }} Created" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Release Assets" >> $GITHUB_STEP_SUMMARY
+          echo "- 📦 retail-analytics-db-${{ steps.get_version.outputs.version_clean }}.tar.gz" >> $GITHUB_STEP_SUMMARY
+          echo "- 📦 retail-analytics-db-${{ steps.get_version.outputs.version_clean }}.zip" >> $GITHUB_STEP_SUMMARY
+          echo "- ✔️ CHECKSUMS.txt" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Package Contents" >> $GITHUB_STEP_SUMMARY
+          echo "- Database schema (PostgreSQL 13+)" >> $GITHUB_STEP_SUMMARY
+          echo "- Business analytics queries" >> $GITHUB_STEP_SUMMARY
+          echo "- KPI dashboard" >> $GITHUB_STEP_SUMMARY
+          echo "- Data validation scripts" >> $GITHUB_STEP_SUMMARY
+          echo "- Complete documentation" >> $GITHUB_STEP_SUMMARY
