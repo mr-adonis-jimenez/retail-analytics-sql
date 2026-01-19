@@ -1,0 +1,147 @@
+name: SQL Lint and Format
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+    paths:
+      - 'schema/**/*.sql'
+      - 'queries/**/*.sql'
+      - 'analytics/**/*.sql'
+      - 'validation/**/*.sql'
+      - 'admin/**/*.sql'
+      - '.sqlfluff'
+      - '.github/workflows/sql-lint.yml'
+  pull_request:
+    branches:
+      - main
+      - 'feature/**'
+    paths:
+      - 'schema/**/*.sql'
+      - 'queries/**/*.sql'
+      - 'analytics/**/*.sql'
+      - 'validation/**/*.sql'
+      - 'admin/**/*.sql'
+      - '.sqlfluff'
+
+jobs:
+  sqlfluff-lint:
+    name: Lint SQL Files
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install sqlfluff
+        run: |
+          pip install sqlfluff sqlfluff-templater-dbt
+
+      - name: Create .sqlfluff config if not exists
+        run: |
+          if [ ! -f .sqlfluff ]; then
+            cat > .sqlfluff << 'EOF'
+          [sqlfluff]
+          dialect = postgres
+          templater = raw
+          exclude_rules = L034,L036
+          max_line_length = 120
+          indent_unit = space
+          
+          [sqlfluff:indentation]
+          indented_joins = False
+          indented_ctes = False
+          indented_using_on = True
+          template_blocks_indent = True
+          
+          [sqlfluff:rules]
+          tab_space_size = 4
+          indent_unit = space
+          
+          [sqlfluff:rules:L003]
+          indent_unit = space
+          
+          [sqlfluff:rules:L010]
+          capitalisation_policy = upper
+          
+          [sqlfluff:rules:L014]
+          capitalisation_policy = upper
+          
+          [sqlfluff:rules:L030]
+          capitalisation_policy = upper
+          
+          [sqlfluff:rules:L040]
+          capitalisation_policy = upper
+          EOF
+          fi
+
+      - name: Lint schema directory
+        run: |
+          if [ -d "schema" ]; then
+            echo "Linting schema/..."
+            sqlfluff lint schema/ --dialect postgres --format github-annotation || exit 1
+          fi
+
+      - name: Lint queries directory
+        run: |
+          if [ -d "queries" ]; then
+            echo "Linting queries/..."
+            sqlfluff lint queries/ --dialect postgres --format github-annotation || exit 1
+          fi
+
+      - name: Lint analytics directory
+        run: |
+          if [ -d "analytics" ]; then
+            echo "Linting analytics/..."
+            sqlfluff lint analytics/ --dialect postgres --format github-annotation || exit 1
+          fi
+
+      - name: Lint validation directory
+        run: |
+          if [ -d "validation" ]; then
+            echo "Linting validation/..."
+            sqlfluff lint validation/ --dialect postgres --format github-annotation || exit 1
+          fi
+
+      - name: Lint admin directory
+        run: |
+          if [ -d "admin" ]; then
+            echo "Linting admin/..."
+            sqlfluff lint admin/ --dialect postgres --format github-annotation || exit 1
+          fi
+
+      - name: Generate lint report
+        if: always()
+        run: |
+          echo "## SQL Lint Results" > lint-report.md
+          echo "" >> lint-report.md
+          sqlfluff lint schema/ queries/ analytics/ validation/ admin/ --dialect postgres --format human >> lint-report.md 2>&1 || true
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sql-lint-report
+          path: lint-report.md
+          retention-days: 30
+
+      - name: Comment PR with results
+        if: github.event_name == 'pull_request' && failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('lint-report.md', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## ❌ SQL Linting Failed\n\n${report}\n\n**Action Required:** Please fix the SQL style violations before merging.`
+            });
