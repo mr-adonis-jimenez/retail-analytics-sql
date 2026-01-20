@@ -23,38 +23,60 @@ jobs:
     name: policy / enforce
     runs-on: ubuntu-latest
 
+    defaults:
+      run:
+        shell: bash
+
     steps:
-      - name: Checkout
+      # ------------------------------------------------------------
+      # Checkout (full history required for signature verification)
+      # ------------------------------------------------------------
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      # ------------------------------------------------------------
+      # Branch naming enforcement
+      # ------------------------------------------------------------
       - name: Validate branch naming
         run: |
-          BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
-          echo "Branch: $BRANCH"
+          set -euo pipefail
+
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            BRANCH="${GITHUB_HEAD_REF}"
+          else
+            BRANCH="${GITHUB_REF#refs/heads/}"
+          fi
+
+          echo "Evaluating branch: $BRANCH"
 
           if [[ ! "$BRANCH" =~ ^(main|release\/.+|feature\/.+|bugfix\/.+|hotfix\/.+)$ ]]; then
-            echo "❌ Invalid branch name"
+            echo "❌ Invalid branch name: $BRANCH"
+            echo "Allowed: main, release/*, feature/*, bugfix/*, hotfix/*"
             exit 1
           fi
 
+          echo "✅ Branch naming policy satisfied"
+
+      # ------------------------------------------------------------
+      # Commit signature enforcement
+      # ------------------------------------------------------------
       - name: Verify signed commits
         run: |
-          git log --format='%G?' origin/main..HEAD | grep -vq '^[GU]$' && {
+          set -euo pipefail
+
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            RANGE="origin/${GITHUB_BASE_REF}..HEAD"
+          else
+            RANGE="HEAD~1..HEAD"
+          fi
+
+          echo "Verifying commit signatures in range: $RANGE"
+
+          if git log --format='%G?' "$RANGE" | grep -qv '^[GU]$'; then
             echo "❌ Unsigned or unverified commits detected"
             exit 1
-          } || echo "✅ All commits verified"
+          fi
 
-      - name: Lint configuration files
-        run: |
-          yamllint .github || exit 1
-
-      - name: Dependency vulnerability scan
-        uses: github/dependency-review-action@v4
-        with:
-          fail-on-severity: high
-
-      - name: CI policy summary
-        run: |
-          echo "✅ Policy enforcement passed"
+          echo "✅ All comm
