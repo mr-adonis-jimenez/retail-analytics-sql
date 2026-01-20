@@ -31,28 +31,54 @@ jobs:
 
       - name: Validate branch naming
         run: |
+          set -e
           BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
           echo "Branch: $BRANCH"
 
           if [[ ! "$BRANCH" =~ ^(main|release\/.+|feature\/.+|bugfix\/.+|hotfix\/.+)$ ]]; then
-            echo "❌ Invalid branch name"
+            echo "❌ Invalid branch name: $BRANCH"
             exit 1
           fi
+          echo "✅ Branch name valid"
 
       - name: Verify signed commits
         run: |
-          git log --format='%G?' origin/main..HEAD | grep -vq '^[GU]$' && {
+          set -e
+
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            RANGE="origin/${GITHUB_BASE_REF}..HEAD"
+          else
+            RANGE="HEAD~1..HEAD"
+          fi
+
+          echo "Checking commit signatures in range: $RANGE"
+
+          if git log --format='%G?' "$RANGE" | grep -qv '^[GU]$'; then
             echo "❌ Unsigned or unverified commits detected"
             exit 1
-          } || echo "✅ All commits verified"
+          fi
+
+          echo "✅ All commits verified"
+
+      - name: Install yamllint
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y yamllint
 
       - name: Lint configuration files
         run: |
-          yamllint .github || exit 1
+          yamllint .github
 
       - name: Dependency vulnerability scan
-        uses: github/dependency-review-action@v4
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@v4
         with:
+          fail-on-severity: high
+
+      - name: CI policy summary
+        run: |
+          echo "✅ Policy enforcement passed"
+
           fail-on-severity: high
 
       - name: CI policy summary
