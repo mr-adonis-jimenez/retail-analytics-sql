@@ -51,7 +51,7 @@ jobs:
           yamllint .github || exit 1
 
       - name: Dependency vulnerability scan
-        uses: github/dependency-review-action@v4
+        uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: high
 
