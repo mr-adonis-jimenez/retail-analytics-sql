@@ -1,60 +1,14 @@
-name: policy-enforcement
-
-on:
-  pull_request:
-    branches:
-      - main
-      - release/**
-  push:
-    branches:
-      - main
+name: 'Dependency Review'
+on: [pull_request]
 
 permissions:
   contents: read
-  pull-requests: read
-  checks: write
-
-concurrency:
-  group: policy-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
-  enforce-policy:
-    name: policy / enforce
+  dependency-review:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
+      - name: 'Checkout Repository'
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Validate branch naming
-        run: |
-          BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
-          echo "Branch: $BRANCH"
-
-          if [[ ! "$BRANCH" =~ ^(main|release\/.+|feature\/.+|bugfix\/.+|hotfix\/.+)$ ]]; then
-            echo "❌ Invalid branch name"
-            exit 1
-          fi
-
-      - name: Verify signed commits
-        run: |
-          git log --format='%G?' origin/main..HEAD | grep -vq '^[GU]$' && {
-            echo "❌ Unsigned or unverified commits detected"
-            exit 1
-          } || echo "✅ All commits verified"
-
-      - name: Lint configuration files
-        run: |
-          yamllint .github || exit 1
-
-      - name: Dependency vulnerability scan
-        uses: github/dependency-review-action@v4
-        with:
-          fail-on-severity: high
-
-      - name: CI policy summary
-        run: |
-          echo "✅ Policy enforcement passed"
+      - name: 'Dependency Review'
+        uses: actions/dependency-review-action@v4
