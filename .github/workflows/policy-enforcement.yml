@@ -1,4 +1,4 @@
-name: policy-enforcement
+vname: policy-enforcement
 
 on:
   pull_request:
@@ -27,6 +27,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          # Needed so git history and signatures are available
           fetch-depth: 0
 
       - name: Validate branch naming
@@ -35,23 +36,36 @@ jobs:
           echo "Branch: $BRANCH"
 
           if [[ ! "$BRANCH" =~ ^(main|release\/.+|feature\/.+|bugfix\/.+|hotfix\/.+)$ ]]; then
-            echo "❌ Invalid branch name"
+            echo "❌ Invalid branch name: $BRANCH"
             exit 1
           fi
+          echo "✅ Branch name valid"
 
       - name: Verify signed commits
         run: |
-          git log --format='%G?' origin/main..HEAD | grep -vq '^[GU]$' && {
-            echo "❌ Unsigned or unverified commits detected"
+          # Determine range:
+          # - For PRs: base..HEAD
+          # - For direct pushes to main: origin/main..HEAD (previous fetch)
+          if [[ -n "${GITHUB_HEAD_REF}" ]]; then
+            RANGE="origin/${GITHUB_BASE_REF}..HEAD"
+          else
+            RANGE="origin/main..HEAD"
+          fi
+
+          echo "Checking commit signatures in range: $RANGE"
+          if git log --format='%G?' "$RANGE" | grep -qv '^[GU]$'; then
+            echo "❌ Unsigned or unverified commits detected in $RANGE"
             exit 1
-          } || echo "✅ All commits verified"
+          fi
+          echo "✅ All commits in $RANGE are verified"
 
       - name: Lint configuration files
         run: |
-          yamllint .github || exit 1
+          echo "Running yamllint on .github"
+          yamllint .github
 
       - name: Dependency vulnerability scan
-        uses: github/dependency-review-action@v4
+        uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: high
 
