@@ -1,13 +1,7 @@
-vname: policy-enforcement
+name: policy-enforcement
 
 on:
-  pull_request:
-    branches:
-      - main
-      - release/**
-  push:
-    branches:
-      - main
+  workflow_call:
 
 permissions:
   contents: read
@@ -27,48 +21,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # Needed so git history and signatures are available
           fetch-depth: 0
 
       - name: Validate branch naming
         run: |
           BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
-          echo "Branch: $BRANCH"
-
-          if [[ ! "$BRANCH" =~ ^(main|release\/.+|feature\/.+|bugfix\/.+|hotfix\/.+)$ ]]; then
-            echo "❌ Invalid branch name: $BRANCH"
-            exit 1
-          fi
-          echo "✅ Branch name valid"
+          [[ "$BRANCH" =~ ^(main|release\/.+|feature\/.+|bugfix\/.+|hotfix\/.+)$ ]] || exit 1
 
       - name: Verify signed commits
         run: |
-          # Determine range:
-          # - For PRs: base..HEAD
-          # - For direct pushes to main: origin/main..HEAD (previous fetch)
           if [[ -n "${GITHUB_HEAD_REF}" ]]; then
             RANGE="origin/${GITHUB_BASE_REF}..HEAD"
           else
             RANGE="origin/main..HEAD"
           fi
 
-          echo "Checking commit signatures in range: $RANGE"
-          if git log --format='%G?' "$RANGE" | grep -qv '^[GU]$'; then
-            echo "❌ Unsigned or unverified commits detected in $RANGE"
-            exit 1
-          fi
-          echo "✅ All commits in $RANGE are verified"
+          git log --format='%G?' "$RANGE" | grep -qv '^[GU]$' && exit 1 || true
 
       - name: Lint configuration files
-        run: |
-          echo "Running yamllint on .github"
-          yamllint .github
+        run: yamllint .github
 
       - name: Dependency vulnerability scan
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: high
-
-      - name: CI policy summary
-        run: |
-          echo "✅ Policy enforcement passed"
