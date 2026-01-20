@@ -1,190 +1,55 @@
-name: Security & Dependency Checks
+name: security-and-policy-enforcement
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
-      - 'requirements.txt'
-      - 'SECURITY.md'
-      - 'LICENSE'
-      - '.github/workflows/security-checks.yml'
+      - requirements.txt
+      - SECURITY.md
+      - LICENSE
+      - .github/workflows/security-and-policy-enforcement.yml
   pull_request:
-    branches:
-      - main
+    branches: [main]
   schedule:
-    # Weekly security scan every Monday at 9 AM UTC
     - cron: '0 9 * * 1'
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
 jobs:
   dependency-check:
-    name: Python Dependency Security Scan
+    name: security / dependency-scan
     runs-on: ubuntu-latest
-    
+
     steps:
-      - name: Checkout code
-  
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install pip-audit
-        run: pip install pip-audit
-
-      - name: Scan requirements.txt for vulnerabilities
-        continue-on-error: true
+      - name: Install audit tooling
         run: |
-          echo "Scanning Python dependencies for known vulnerabilities..."
-          pip-audit -r requirements.txt --format json > security-report.json || true
-          pip-audit -r requirements.txt --format markdown > security-report.md || true
+          sudo apt-get update
+          sudo apt-get install -y jq
+          pip install pip-audit
 
-      - name: Check for outdated packages
+      - name: Scan dependencies
+        run: |
+          pip-audit -r requirements.txt --format json > security-report.json
+          pip-audit -r requirements.txt --format markdown > security-report.md
+
+      - name: Check outdated packages
         run: |
           pip install -r requirements.txt
           pip list --outdated --format json > outdated-packages.json
-          echo "## Outdated Python Packages" > outdated-report.md
-          pip list --outdated >> outdated-report.md
+          pip list --outdated > outdated-report.md
 
-      - name: Upload security reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: security-reports
-          path: |
-            security-report.json
-            security-report.md
-            outdated-packages.json
-            outdated-report.md
-          retention-days: 90
-
-      - name: Fail on high severity vulnerabilities
+      - name: Enforce severity gate
         run: |
-          if [ -f security-report.json ]; then
-            HIGH_VULNS=$(jq '[.dependencies[] | select(.vulns[] | .severity == "HIGH" or .severity == "CRITICAL")] | length' security-report.json)
-            if [ "$HIGH_VULNS" -gt 0 ]; then
-              echo "❌ Found $HIGH_VULNS high/critical severity vulnerabilities"
-              exit 1
-            fi
-          fi
-
-  policy-compliance:
-    name: Policy & File Compliance Check
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-  
-
-      - name: Check required files exist
-        run: |
-          echo "Checking for required policy files..."
-          EXIT_CODE=0
-          
-          if [ ! -f "SECURITY.md" ]; then
-            echo "❌ SECURITY.md is missing"
-            EXIT_CODE=1
-          else
-            echo "✓ SECURITY.md exists"
-          fi
-          
-          if [ ! -f "LICENSE" ]; then
-            echo "❌ LICENSE is missing"
-            EXIT_CODE=1
-          else
-            echo "✓ LICENSE exists"
-          fi
-          
-          if [ ! -f "README.md" ]; then
-            echo "❌ README.md is missing"
-            EXIT_CODE=1
-          else
-            echo "✓ README.md exists"
-          fi
-          
-          if [ ! -f "CONTRIBUTING.md" ]; then
-            echo "⚠ CONTRIBUTING.md is recommended but not required"
-          else
-            echo "✓ CONTRIBUTING.md exists"
-          fi
-          
-          exit $EXIT_CODE
-
-      - name: Validate SECURITY.md content
-        run: |
-          if grep -q "Reporting.*Vulnerabilit" SECURITY.md; then
-            echo "✓ SECURITY.md contains vulnerability reporting section"
-          else
-            echo "⚠ SECURITY.md should include vulnerability reporting guidelines"
-          fi
-
-      - name: Validate LICENSE
-        run: |
-          if [ -f "LICENSE" ]; then
-            if grep -qi "MIT\|Apache\|GPL\|BSD" LICENSE; then
-              echo "✓ LICENSE file contains recognized license"
-            else
-              echo "⚠ LICENSE file may need review"
-            fi
-          fi
-
-  codeowners-check:
-    name: Verify CODEOWNERS Configuration
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    
-    steps:
-      - name: Checkout code
-  
-
-      - name: Check if PR affects protected paths
-        id: check_paths
-        run: |
-          PROTECTED_PATHS="schema/ validation/ admin/performance_analysis.sql"
-          CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
-          
-          NEEDS_REVIEW=false
-          for path in $PROTECTED_PATHS; do
-            if echo "$CHANGED_FILES" | grep -q "^$path"; then
-              echo "⚠ Changes detected in protected path: $path"
-              NEEDS_REVIEW=true
-            fi
-          done
-          
-          echo "needs_review=$NEEDS_REVIEW" >> $GITHUB_OUTPUT
-
-      - name: Create CODEOWNERS file if missing
-        if: steps.check_paths.outputs.needs_review == 'true'
-        run: |
-          if [ ! -f ".github/CODEOWNERS" ]; then
-            cat > .github/CODEOWNERS << 'EOF'
-          # Retail Analytics SQL - Code Owners
-          # These owners will be requested for review when PRs modify these paths
-          
-          # Schema changes require database admin review
-          /schema/ @${{ github.repository_owner }}
-          
-          # Validation scripts require data quality team review  
-          /validation/ @${{ github.repository_owner }}
-          
-          # Performance analysis requires senior review
-          /admin/performance_analysis.sql @${{ github.repository_owner }}
-          EOF
-            echo "⚠ CODEOWNERS file created - please commit this file"
-          else
-            echo "✓ CODEOWNERS file exists"
-          fi
-
-      - name: Comment on PR if review required
-        if: steps.check_paths.outputs.needs_review == 'true'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: '⚠ **Code Owner Review Required**\n\nThis PR modifies protected paths (schema/, validation/, or admin/performance_analysis.sql) and requires review from designated code owners.'
-            });
+          HIGH=$(jq '[.dependenci]()
