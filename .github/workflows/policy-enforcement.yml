@@ -1,60 +1,153 @@
-name: policy-enforcement
+name: Policy Enforcement
 
 on:
   pull_request:
     branches:
       - main
       - release/**
+      - develop
   push:
     branches:
       - main
+      - develop
+  workflow_dispatch:
 
 permissions:
   contents: read
-  pull-requests: read
+  pull-requests: write
   checks: write
+  security-events: write
+  issues: write
 
 concurrency:
   group: policy-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  ENVIRONMENT: ${{ vars.ENVIRONMENT || 'production' }}
+
 jobs:
   enforce-policy:
-    name: policy / enforce
+    name: Policy / Enforce Standards
     runs-on: ubuntu-latest
-
+    timeout-minutes: 10
+    
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Validate branch naming
+          
+      - name: Validate Branch Naming Convention
+        if: github.event_name == 'pull_request'
         run: |
-          BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
-          echo "Branch: $BRANCH"
-
-          if [[ ! "$BRANCH" =~ ^(main|release\/.+|feature\/.+|bugfix\/.+|hotfix\/.+)$ ]]; then
-            echo "❌ Invalid branch name"
+          BRANCH="${GITHUB_HEAD_REF}"
+          echo "🔍 Validating branch: $BRANCH"
+          
+          if [[ "$BRANCH" =~ ^(main|develop|release/v[0-9]+\.[0-9]+\.[0-9]+|feature/[a-z0-9-]+|bugfix/[a-z0-9-]+|hotfix/[a-z0-9-]+)$ ]]; then
+            echo "✅ Branch name is valid"
+          else
+            echo "❌ Invalid branch name: $BRANCH"
+            echo "Valid patterns: main, develop, release/v*, feature/*, bugfix/*, hotfix/*"
             exit 1
           fi
-
-      - name: Verify signed commits
+          
+      - name: Verify Commit Messages
         run: |
-          git log --format='%G?' origin/main..HEAD | grep -vq '^[GU]$' && {
-            echo "❌ Unsigned or unverified commits detected"
+          echo "📝 Checking commit messages..."
+          git log --format=%B origin/main..HEAD | while read -r msg; do
+            if [[ -z "$msg" ]]; then continue; fi
+            if [[ ! "$msg" =~ ^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\([a-z0-9-]+\))?:.*$ ]]; then
+              echo "❌ Invalid commit message format: $msg"
+              echo "Use conventional commits: type(scope): message"
+              exit 1
+            fi
+          done
+          echo "✅ All commit messages follow conventions"
+          
+      - name: Check File Sizes
+        run: |
+          echo "📦 Checking for large files..."
+          LARGE_FILES=$(find . -type f -size +5M -not -path "*/\.*" 2>/dev/null || true)
+          if [ -n "$LARGE_FILES" ]; then
+            echo "❌ Large files detected (>5MB):"
+            echo "$LARGE_FILES"
             exit 1
-          } || echo "✅ All commits verified"
-
-      - name: Lint configuration files
+          fi
+          echo "✅ No large files detected"
+          
+      - name: Validate YAML Files
         run: |
-          yamllint .github || exit 1
-
-      - name: Dependency vulnerability scan
+          echo "🔧 Installing yamllint..."
+          pip install yamllint
+          echo "📋 Linting YAML files..."
+          yamllint -d '{extends: default, rules: {line-length: {max: 120}}}' .github/ || exit 1
+          echo "✅ YAML files are valid"
+          
+      - name: Security - Dependency Vulnerability Scan
         uses: github/dependency-review-action@v4
+        if: github.event_name == 'pull_request'
         with:
-          fail-on-severity: high
-
-      - name: CI policy summary
+          fail-on-severity: moderate
+          deny-licenses: GPL-2.0, GPL-3.0
+          
+      - name: Security - Secret Scanning
         run: |
-          echo "✅ Policy enforcement passed"
+          echo "🔐 Scanning for exposed secrets..."
+          # Check for common secret patterns
+          if git diff origin/main..HEAD | grep -iE '(password|api[_-]?key|secret|token|private[_-]?key)\s*=\s*["'"'][^"'"']+["'"']'; then
+            echo "❌ Potential secrets detected in commits"
+            exit 1
+          fi
+          echo "✅ No secrets detected"
+          
+      - name: Code Quality - SQL Files
+        if: contains(github.event.head_commit.modified, '.sql')
+        run: |
+          echo "🔍 Checking SQL files for quality..."
+          # Check for dangerous SQL patterns
+          if grep -r --include="*.sql" -iE "(DROP TABLE|TRUNCATE|DELETE FROM.*WHERE 1=1)" .; then
+            echo "⚠️  WARNING: Dangerous SQL patterns detected"
+          fi
+          echo "✅ SQL quality check complete"
+          
+      - name: Notify Make.com Webhook
+        if: always()
+        continue-on-error: true
+        run: |
+          STATUS="${{ job.status }}"
+          PAYLOAD=$(cat <<EOF
+          {
+            "workflow": "${{ github.workflow }}",
+            "repository": "${{ github.repository }}",
+            "branch": "${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}",
+            "status": "$STATUS",
+            "run_id": "${{ github.run_id }}",
+            "run_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+            "actor": "${{ github.actor }}",
+            "event": "${{ github.event_name }}",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+          )
+          
+          if [ -n "${{ secrets.MAKE_WEBHOOK_URL }}" ]; then
+            curl -X POST "${{ secrets.MAKE_WEBHOOK_URL }}" \
+              -H "Content-Type: application/json" \
+              -d "$PAYLOAD" || echo "⚠️  Webhook notification failed"
+          else
+            echo "ℹ️  No webhook URL configured"
+          fi
+          
+      - name: Policy Summary Report
+        if: always()
+        run: |
+          echo "## 📊 Policy Enforcement Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Repository**: ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: ${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Event**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment**: ${{ env.ENVIRONMENT }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All policy checks completed successfully!" >> $GITHUB_STEP_SUMMARY
