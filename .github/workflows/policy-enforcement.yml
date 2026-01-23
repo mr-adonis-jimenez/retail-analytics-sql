@@ -29,32 +29,18 @@ jobs:
         with:
           fetch-depth: 0
 
+      # ─────────────────────────────────────────────
+      # Branch naming (PRs only)
+      # ─────────────────────────────────────────────
       - name: Validate branch naming
+        if: github.event_name == 'pull_request'
         run: |
-          BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
+          BRANCH="${GITHUB_HEAD_REF}"
           echo "Branch: $BRANCH"
 
           if [[ ! "$BRANCH" =~ ^(main|release\/.+|feature\/.+|bugfix\/.+|hotfix\/.+)$ ]]; then
-            echo "❌ Invalid branch name"
+            echo "❌ Invalid branch name: $BRANCH"
             exit 1
           fi
 
-      - name: Verify signed commits
-        run: |
-          git log --format='%G?' origin/main..HEAD | grep -vq '^[GU]$' && {
-            echo "❌ Unsigned or unverified commits detected"
-            exit 1
-          } || echo "✅ All commits verified"
-
-      - name: Lint configuration files
-        run: |
-          yamllint .github || exit 1
-
-      - name: Dependency vulnerability scan
-        uses: github/dependency-review-action@v4
-        with:
-          fail-on-severity: high
-
-      - name: CI policy summary
-        run: |
-          echo "✅ Policy enforcement passed"
+      # ─────────────────

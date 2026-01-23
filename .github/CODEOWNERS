@@ -1,0 +1,24 @@
+# Code Ownership for retail-analytics-sql
+# This file defines who is responsible for code reviews in different parts of the repository
+
+# Global default - all files
+*       @mr-adonis-jimenez
+# CI/CD workflows and GitHub configurations
+.github/            @mr-adonis-jimenez
+
+# SQL queries and database schema
+*.sql               @mr-adonis-jimenez
+sql/                @mr-adonis-jimenez
+
+# Python data processing scripts
+*.py                @mr-adonis-jimenez
+src/                @mr-adonis-jimenez
+
+# Documentation
+*.md                @mr-adonis-jimenez
+docs/               @mr-adonis-jimenez
+
+# Data files and configurations
+data/               @mr-adonis-jimenez
+*.csv               @mr-adonis-jimenez
+*.json              @mr-adonis-jimenez
