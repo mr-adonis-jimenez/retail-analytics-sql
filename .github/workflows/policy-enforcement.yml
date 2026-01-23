@@ -35,7 +35,7 @@ jobs:
           echo "Branch: $BRANCH"
 
           if [[ ! "$BRANCH" =~ ^(main|release\/.+|feature\/.+|bugfix\/.+|hotfix\/.+)$ ]]; then
-            echo "❌ Invalid branch name"
+            echo "main"
             exit 1
           fi
 
