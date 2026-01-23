@@ -3,7 +3,6 @@
 
 # Global default - all files
 *       @mr-adonis-jimenez
-
 # CI/CD workflows and GitHub configurations
 .github/            @mr-adonis-jimenez
 
