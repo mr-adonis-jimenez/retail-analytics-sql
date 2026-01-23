@@ -29,32 +29,58 @@ jobs:
         with:
           fetch-depth: 0
 
+      # ─────────────────────────────────────────────
+      # Branch naming (PRs only — correct context)
+      # ─────────────────────────────────────────────
       - name: Validate branch naming
+        if: github.event_name == 'pull_request'
         run: |
-          BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
+          BRANCH="${GITHUB_HEAD_REF}"
           echo "Branch: $BRANCH"
 
           if [[ ! "$BRANCH" =~ ^(main|release\/.+|feature\/.+|bugfix\/.+|hotfix\/.+)$ ]]; then
-            echo "❌ Invalid branch name"
+            echo "❌ Invalid branch name: $BRANCH"
             exit 1
           fi
 
+      # ─────────────────────────────────────────────
+      # Signed commit verification (safe ranges)
+      # ─────────────────────────────────────────────
       - name: Verify signed commits
         run: |
-          git log --format='%G?' origin/main..HEAD | grep -vq '^[GU]$' && {
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch origin ${{ github.base_ref }}
+            RANGE="origin/${{ github.base_ref }}...HEAD"
+          else
+            RANGE="HEAD~1..HEAD"
+          fi
+
+          git log --format='%G?' $RANGE | grep -vq '^[GU]$' && {
             echo "❌ Unsigned or unverified commits detected"
             exit 1
           } || echo "✅ All commits verified"
 
-      - name: Lint configuration files
-        run: |
-          yamllint .github || exit 1
+      # ─────────────────────────────────────────────
+      # YAML linting (tool installed first)
+      # ─────────────────────────────────────────────
+      - name: Install yamllint
+        run: pip install yamllint
 
+      - name: Lint configuration files
+        run: yamllint .github
+
+      # ─────────────────────────────────────────────
+      # Dependency review (PRs only — REQUIRED)
+      # ─────────────────────────────────────────────
       - name: Dependency vulnerability scan
+        if: github.event_name == 'pull_request'
         uses: github/dependency-review-action@v4
         with:
           fail-on-severity: high
 
+      # ─────────────────────────────────────────────
+      # Summary
+      # ─────────────────────────────────────────────
       - name: CI policy summary
         run: |
-          echo "✅ Policy enforcement passed"
+          echo "### ✅ Policy enforcement passed" >> $GITHUB_STEP_SUMMARY
