@@ -24,7 +24,7 @@ jobs:
     
     steps:
       - name: Checkout code
-  
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -76,7 +76,7 @@ jobs:
     
     steps:
       - name: Checkout code
-  
+        uses: actions/checkout@v4
 
       - name: Check required files exist
         run: |
@@ -137,7 +137,7 @@ jobs:
     
     steps:
       - name: Checkout code
-  
+        uses: actions/checkout@v4
 
       - name: Check if PR affects protected paths
         id: check_paths
