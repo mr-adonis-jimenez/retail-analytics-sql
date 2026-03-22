@@ -30,6 +30,9 @@ This project is an end-to-end retail analytics solution built on PostgreSQL as t
 
 ## 🚀 Quick Start
 
+# 6. Orchestrate analytics from Python
+python scripts/analytics_runner.py
+
 ### Prerequisites
 
 ```bash
