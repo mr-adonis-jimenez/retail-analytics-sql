@@ -1,5 +1,10 @@
 # Architecture Documentation
 
+### Technology Pillars
+
+- PostgreSQL — primary analytics and storage engine (schema, constraints, analytics SQL, performance tuning).
+- Python — orchestration runtime for data generation, workflow automation, CI integration, and operational checks against PostgreSQL.
+
 ## Overview
 
 The Retail Analytics SQL project is a comprehensive database analytics solution designed for retail business intelligence. This document outlines the system architecture, database design, query patterns, and data flow.
