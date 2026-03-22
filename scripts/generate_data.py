@@ -1,16 +1,30 @@
-""" 
-Retail Analytics Data Generator
-Generates realistic sample data for PostgreSQL database
 """
-import random
+Retail Analytics Data Generator
+
+Python acts as the orchestration layer for this project:
+- Loads configuration securely from environment variables
+- Connects to PostgreSQL using psycopg2
+- Generates realistic synthetic data
+- Inserts data into PostgreSQL in optimized batches
+- Verifies row counts for downstream analytics
+
+This module can be executed as a script or imported and called from other Python services.
+"""
 import os
+import random
 from datetime import date, timedelta
 from typing import List, Tuple
+
+from dotenv import load_dotenv
 import psycopg2
 from psycopg2.extras import execute_batch
 
+# Load environment variables from .env if present
+load_dotenv()
+
 # Seed for reproducibility
 random.seed(42)
+
 
 
 # Configuration - Use environment variables in CI/CD, fallback to defaults locally
