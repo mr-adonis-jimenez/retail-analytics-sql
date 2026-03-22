@@ -1,6 +1,9 @@
 __pycache__/
-*.pyc
+*.py[cod]
+*.pyo
+
 .env
-venv/
-.vscode/
-.DS_Store
+*.env
+
+logs/
+output/
