@@ -1,11 +1,11 @@
 # Retail Analytics Database
 
-[![Database](https://img.shields.io/badge/Database-PostgreSQL_13+-blue.svg)](https://www.postgresql.org/)
-[![Python](https://img.shields.io/badge/Python-3.8+-green.svg)](https://www.python.org/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Database](https://img.shields.io/badge/Core%20Database-PostgreSQL_13+-blue.svg)](https://www.postgresql.org/)
+[![Runtime](https://img.shields.io/badge/Core%20Runtime-Python_3.8+-green.svg)](https://www.python.org/)
+[![Driver](https://img.shields.io/badge/DB%20Access-psycopg2-orange.svg)](https://pypi.org/project/psycopg2-binary/)
 
 ## Overview
-This project is a end-to-end retail analytics solution built on PostgreSQL, focused on actionable business intelligence and production-grade SQL.
+This project is an end-to-end retail analytics solution built on PostgreSQL as the **analytics engine** and Python as the **orchestration runtime**, focused on actionable business intelligence and production-grade SQL.
 
 - 📘 High-level system and database design: see [Architecture Documentation](./ARCHITECTURE.md).
 - 📊 Stakeholder-facing insights and examples: see [Business Insights](./insights/business_insights.md).
