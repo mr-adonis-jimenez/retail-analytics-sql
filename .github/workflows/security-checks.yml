@@ -21,10 +21,12 @@ jobs:
   dependency-check:
     name: Python Dependency Security Scan
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: read
+
     steps:
       - name: Checkout code
-  
+        uses: actions/checkout@v5
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -65,7 +67,7 @@ jobs:
           if [ -f security-report.json ]; then
             HIGH_VULNS=$(jq '[.dependencies[] | select(.vulns[] | .severity == "HIGH" or .severity == "CRITICAL")] | length' security-report.json)
             if [ "$HIGH_VULNS" -gt 0 ]; then
-              echo "❌ Found $HIGH_VULNS high/critical severity vulnerabilities"
+              echo "Found $HIGH_VULNS high/critical severity vulnerabilities"
               exit 1
             fi
           fi
@@ -73,109 +75,79 @@ jobs:
   policy-compliance:
     name: Policy & File Compliance Check
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: read
+
     steps:
       - name: Checkout code
-  
+        uses: actions/checkout@v5
 
       - name: Check required files exist
         run: |
           echo "Checking for required policy files..."
           EXIT_CODE=0
-          
           if [ ! -f "SECURITY.md" ]; then
-            echo "❌ SECURITY.md is missing"
+            echo "SECURITY.md is missing"
             EXIT_CODE=1
           else
-            echo "✓ SECURITY.md exists"
+            echo "SECURITY.md exists"
           fi
-          
           if [ ! -f "LICENSE" ]; then
-            echo "❌ LICENSE is missing"
+            echo "LICENSE is missing"
             EXIT_CODE=1
           else
-            echo "✓ LICENSE exists"
+            echo "LICENSE exists"
           fi
-          
           if [ ! -f "README.md" ]; then
-            echo "❌ README.md is missing"
+            echo "README.md is missing"
             EXIT_CODE=1
           else
-            echo "✓ README.md exists"
+            echo "README.md exists"
           fi
-          
-          if [ ! -f "CONTRIBUTING.md" ]; then
-            echo "⚠ CONTRIBUTING.md is recommended but not required"
-          else
-            echo "✓ CONTRIBUTING.md exists"
-          fi
-          
           exit $EXIT_CODE
 
       - name: Validate SECURITY.md content
         run: |
           if grep -q "Reporting.*Vulnerabilit" SECURITY.md; then
-            echo "✓ SECURITY.md contains vulnerability reporting section"
+            echo "SECURITY.md contains vulnerability reporting section"
           else
-            echo "⚠ SECURITY.md should include vulnerability reporting guidelines"
+            echo "SECURITY.md should include vulnerability reporting guidelines"
           fi
 
       - name: Validate LICENSE
         run: |
           if [ -f "LICENSE" ]; then
             if grep -qi "MIT\|Apache\|GPL\|BSD" LICENSE; then
-              echo "✓ LICENSE file contains recognized license"
+              echo "LICENSE file contains recognized license"
             else
-              echo "⚠ LICENSE file may need review"
+              echo "LICENSE file may need review"
             fi
           fi
 
   codeowners-check:
     name: Verify CODEOWNERS Configuration
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     if: github.event_name == 'pull_request'
-    
+
     steps:
       - name: Checkout code
-  
+        uses: actions/checkout@v5
 
       - name: Check if PR affects protected paths
         id: check_paths
         run: |
           PROTECTED_PATHS="schema/ validation/ admin/performance_analysis.sql"
           CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
-          
           NEEDS_REVIEW=false
           for path in $PROTECTED_PATHS; do
             if echo "$CHANGED_FILES" | grep -q "^$path"; then
-              echo "⚠ Changes detected in protected path: $path"
+              echo "Changes detected in protected path: $path"
               NEEDS_REVIEW=true
             fi
           done
-          
           echo "needs_review=$NEEDS_REVIEW" >> $GITHUB_OUTPUT
-
-      - name: Create CODEOWNERS file if missing
-        if: steps.check_paths.outputs.needs_review == 'true'
-        run: |
-          if [ ! -f ".github/CODEOWNERS" ]; then
-            cat > .github/CODEOWNERS << 'EOF'
-          # Retail Analytics SQL - Code Owners
-          # These owners will be requested for review when PRs modify these paths
-          
-          # Schema changes require database admin review
-          /schema/ @${{ github.repository_owner }}
-          
-          # Validation scripts require data quality team review  
-          /validation/ @${{ github.repository_owner }}
-          
-          # Performance analysis requires senior review
-          /admin/performance_analysis.sql @${{ github.repository_owner }}
-          EOF
-            echo "⚠ CODEOWNERS file created - please commit this file"
-          else
-            echo "✓ CODEOWNERS file exists"
-          fi
 
       - name: Comment on PR if review required
         if: steps.check_paths.outputs.needs_review == 'true'
@@ -186,5 +158,5 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: '⚠ **Code Owner Review Required**\n\nThis PR modifies protected paths (schema/, validation/, or admin/performance_analysis.sql) and requires review from designated code owners.'
+              body: 'Code Owner Review Required - This PR modifies protected paths and requires review from designated code owners.'
             });

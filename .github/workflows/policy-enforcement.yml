@@ -1,41 +1,51 @@
 name: policy-enforcement
 
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
 permissions:
   contents: read
   pull-requests: read
 
-steps:
-  - name: Checkout repository
-    uses: actions/checkout@v4
-    with:
-      fetch-depth: 0
+jobs:
+  policy:
+    runs-on: ubuntu-latest
 
-  - name: Dependency vulnerability scan
-    uses: actions/dependency-review-action@v4
-    with:
-      fail-on-severity: high
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
-  - name: Validate branch naming
-    run: |
-      BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
-      echo "Branch: $BRANCH"
+      - name: Dependency vulnerability scan
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
 
-      if [[ ! "$BRANCH" =~ ^(main|release\/.+|feature\/.+|bugfix\/.+|hotfix\/.+)$ ]]; then
-        echo "❌ Invalid branch name"
-        exit 1
-      fi
+      - name: Validate branch naming
+        run: |
+          BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
+          echo "Branch: $BRANCH"
+          if [[ ! "$BRANCH" =~ ^(main|release\/.+|feature\/.+|bugfix\/.+|hotfix\/.+)$ ]]; then
+            echo "Invalid branch name"
+            exit 1
+          fi
 
-  - name: Verify signed commits
-    run: |
-      git log --format='%G?' origin/main..HEAD | grep -vq '^[GU]$' && {
-        echo "❌ Unsigned or unverified commits detected"
-        exit 1
-      } || echo "✅ All commits verified"
+      - name: Verify signed commits
+        run: |
+          git log --format='%G?' origin/main..HEAD | grep -vq '^[GU]$' && {
+            echo "Unsigned or unverified commits detected"
+            exit 1
+          } || echo "All commits verified"
 
-  - name: Lint configuration files
-    run: |
-      yamllint .github
+      - name: Lint configuration files
+        run: |
+          yamllint .github
 
-  - name: CI policy summary
-    run: |
-      echo "✅ Policy enforcement passed"
+      - name: CI policy summary
+        run: |
+          echo "Policy enforcement passed"
