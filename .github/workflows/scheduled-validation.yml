@@ -1,4 +1,3 @@
-# Simplified workflow - Line 111 error fixed
 name: Scheduled Analytics & Validation
 
 on:
@@ -10,7 +9,10 @@ jobs:
   nightly-validation:
     name: Nightly Database Validation
     runs-on: ubuntu-latest
-    
+
+    permissions:
+      contents: read
+
     services:
       postgres:
         image: postgres:15-alpine
@@ -25,27 +27,27 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
-          
+
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: main
-          
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
-          
+
       - name: Install dependencies
         run: |
           pip install --upgrade pip psycopg2-binary
-          
+
       - name: Apply schema
         env:
           PGPASSWORD: validation_password
         run: |
           psql -h localhost -U retail_admin -d retail_analytics_nightly -f schema/schema.sql -v ON_ERROR_STOP=1
-          
+
       - name: Load sample data
         env:
           PGHOST: localhost
@@ -54,7 +56,7 @@ jobs:
           PGDATABASE: retail_analytics_nightly
         run: |
           python scripts/generate_data.py
-          
+
       - name: Run all queries
         env:
           PGPASSWORD: validation_password
