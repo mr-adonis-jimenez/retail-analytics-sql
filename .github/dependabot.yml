@@ -1,0 +1,46 @@
+# Dependabot configuration for retail-analytics-sql
+# Automatically checks for dependency updates and creates PRs
+
+version: 2
+updates:
+  # Python dependencies (if using requirements.txt or setup.py)
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "mr-adonis-jimenez"
+    labels:
+      - "dependencies"
+      - "python"
+    
+  # GitHub Actions workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "mr-adonis-jimenez"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    
+  # Docker (if using Dockerfile)
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "mr-adonis-jimenez"
+    labels:
+      - "dependencies"
+      - "docker"
